@@ -16,7 +16,8 @@ COPY . /app
 # ----------------------------
 # Install dependencies
 # ----------------------------
-RUN pip install --upgrade pip && pip install -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir --root-user-action=ignore -r requirements.txt
 
 # ----------------------------
 # Expose port

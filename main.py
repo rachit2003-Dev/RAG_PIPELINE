@@ -1,7 +1,7 @@
 # ------------------------------------------------------------
 # 🔹 Import dependencies and auto-install if missing
 # ------------------------------------------------------------
-import os, re, subprocess, requests
+import os, re, subprocess
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -21,7 +21,7 @@ PORT = int(os.getenv("PORT", 8000))
 # ------------------------------------------------------------
 # 🔹 Initialize FastAPI app
 # ------------------------------------------------------------
-app = FastAPI(title="Smart Validation API", version="3.0.0")
+app = FastAPI(title="Smart Validation & Analysis API", version="3.1.0")
 
 # ------------------------------------------------------------
 # 🔹 Data Models
@@ -34,6 +34,9 @@ class AddressRequest(BaseModel):
     city: str
     state: str
     zipcode: str
+
+class TextAnalysisRequest(BaseModel):
+    text: str
 
 # ------------------------------------------------------------
 # 🔹 Core Logic Functions
@@ -64,12 +67,35 @@ def validate_us_address(address: str, city: str, state: str, zipcode: str) -> bo
     ai_check = openai_verify(ai_prompt)
     return base_check or ai_check
 
+def analyze_text_with_openai(text: str) -> dict:
+    """Perform text summarization, sentiment, and keyword extraction"""
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=OPENAI_KEY)
+        prompt = f"""
+        Analyze this text and respond in JSON with:
+        - summary
+        - sentiment (positive, neutral, negative)
+        - top 5 keywords
+
+        Text:
+        {text}
+        """
+        response = client.responses.create(model="gpt-4.1-mini", input=prompt)
+        result = response.output[0].content[0].text.strip()
+        return {"analysis": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"OpenAI Analysis Failed: {e}")
+
 # ------------------------------------------------------------
 # 🔹 API Routes
 # ------------------------------------------------------------
 @app.get("/")
 def home():
-    return {"message": "Welcome to Smart Validation API. Use /validate-gst or /validate-address."}
+    return {
+        "message": "Welcome to Smart Validation & Analysis API.",
+        "available_endpoints": ["/validate-gst", "/validate-address", "/openai-analyze"]
+    }
 
 @app.post("/validate-gst")
 def validate_gst(request: GSTRequest):
@@ -83,6 +109,11 @@ def validate_address(request: AddressRequest):
     if not validate_us_address(request.address, request.city, request.state, request.zipcode):
         raise HTTPException(status_code=400, detail="Invalid or Unverifiable Address.")
     return {"address": request.address, "valid": True, "message": "Valid US Address ✅"}
+
+@app.post("/openai-analyze")
+def openai_analyze(request: TextAnalysisRequest):
+    result = analyze_text_with_openai(request.text)
+    return {"input_text": request.text, "analysis": result["analysis"]}
 
 # ------------------------------------------------------------
 # 🔹 Run Application
